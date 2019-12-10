@@ -26,24 +26,24 @@ partial
 evaluate : (ip: Nat)
          -> (mem: List Integer)
          -> {auto ok: InBounds ip mem}
-         -> Either (List Integer) Terminated
+         -> Terminated
 evaluate instructionPointer memory =
   case nextInstruction of
     1 => case inBounds (instructionPointer + 4) opCode1Eval of
       Yes prf =>
           evaluate (instructionPointer + 4) opCode1Eval
-      No ctr => Right . Error $ 0
+      No ctr => Error $ 0
     2  => case inBounds (instructionPointer + 4) opCode2Eval of
       Yes prf =>
           evaluate (instructionPointer + 4) opCode2Eval
-      No ctr => Right . Error $ 0
-    99 => Right . Success $ atIndex 0
-    other => Right . Error . fromInteger $ other
+      No ctr => Error $ 0
+    99 => Success . atIndex $ 0
+    other => Error . fromInteger $ other
   where
     nextInstruction : Integer
     nextInstruction = index instructionPointer memory
     atIndex : Nat -> Integer
-    atIndex idx = index idx memory {ok=believe_me ()}
+    atIndex idx = index idx memory {ok=?prf1}
     val1 : Integer
     val1 = atIndex . cast . atIndex $ instructionPointer + 1
     val2 : Integer
@@ -51,9 +51,9 @@ evaluate instructionPointer memory =
     updatedIndex : Nat
     updatedIndex = cast . atIndex $ instructionPointer + 3
     opCode1Eval : List Integer
-    opCode1Eval = update memory updatedIndex (val1 + val2) {ok=believe_me ()}
+    opCode1Eval = update memory updatedIndex (val1 + val2) {ok=?prf2}
     opCode2Eval : List Integer
-    opCode2Eval = update memory updatedIndex (val1 * val2) {ok=believe_me ()}
+    opCode2Eval = update memory updatedIndex (val1 * val2) {ok=?prf3}
 
 parseInput : String -> List Integer
 parseInput input = map cast $ Strings.split (== ',') input
@@ -62,18 +62,16 @@ parseInput input = map cast $ Strings.split (== ',') input
 main' : IO ()
 main' = do
   input <- getLine
-  case evaluate 0 (parseInput input) {ok=believe_me()} of
-    Left list => putStrLn . concat . map cast $ list
-    Right res => putStrLn . cast $ res
+  putStrLn . cast $ evaluate 0 (parseInput input) {ok=?prf4}
 
 bruteSearch : List Integer -> List (Integer, Integer, Terminated)
 bruteSearch input =
-  rights [map (\res => (x, y, res)) $ evaluate 0 (attempt x y) {ok=believe_me ()}
+  [(x, y, evaluate 0 (attempt x y) {ok=?prf5})
   | x <- [0..100],
     y <- [0..100]]
   where
     attempt : Integer -> Integer -> List Integer
-    attempt x y = update (update input 1 x {ok=believe_me ()}) 2 y {ok=believe_me ()}
+    attempt x y = update (update input 1 x {ok=believe_me ()}) 2 y {ok=?prf7}
 
 -- | Part 2. Search parameter space
 main : IO ()

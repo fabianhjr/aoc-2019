@@ -8,15 +8,27 @@ update : (list: List a)
        -> List a
 update list index new = take index list ++ [new] ++ drop (index + 1) list
 
-data Terminated = Error Nat | Success Nat
+data Terminated = Error Integer | Success Integer
+
+Eq Terminated where
+  (Error e1) == (Error e2) = e1 == e2
+  (Success s1) == (Success s2) = s1 == s2
+  _ == _ = False
+
+Cast Terminated String where
+  cast (Error n) = "!Error! " ++ cast n
+  cast (Success n) = cast n
+
+Cast String Terminated where
+  cast s = Success . the Integer . cast $ s
 
 partial
 evaluate : (ip: Nat)
-         -> (mem: List Nat)
+         -> (mem: List Integer)
          -> {auto ok: InBounds ip mem}
-         -> Either (List Nat) Terminated
+         -> Either (List Integer) Terminated
 evaluate instructionPointer memory =
-  case the Integer (fromNat nextInstruction) of
+  case nextInstruction of
     1 => case inBounds (instructionPointer + 4) opCode1Eval of
       Yes prf =>
           evaluate (instructionPointer + 4) opCode1Eval
@@ -28,26 +40,47 @@ evaluate instructionPointer memory =
     99 => Right . Success $ atIndex 0
     other => Right . Error . fromInteger $ other
   where
-    nextInstruction : Nat
+    nextInstruction : Integer
     nextInstruction = index instructionPointer memory
-    atIndex : Nat -> Nat
+    atIndex : Nat -> Integer
     atIndex idx = index idx memory {ok=believe_me ()}
-    val1 : Nat
-    val1 = atIndex . atIndex $ instructionPointer + 1
-    val2 : Nat
-    val2 = atIndex . atIndex $ instructionPointer + 2
+    val1 : Integer
+    val1 = atIndex . cast . atIndex $ instructionPointer + 1
+    val2 : Integer
+    val2 = atIndex . cast . atIndex $ instructionPointer + 2
     updatedIndex : Nat
-    updatedIndex = atIndex $ instructionPointer + 3
-    opCode1Eval : List Nat
+    updatedIndex = cast . atIndex $ instructionPointer + 3
+    opCode1Eval : List Integer
     opCode1Eval = update memory updatedIndex (val1 + val2) {ok=believe_me ()}
-    opCode2Eval : List Nat
+    opCode2Eval : List Integer
     opCode2Eval = update memory updatedIndex (val1 * val2) {ok=believe_me ()}
 
+parseInput : String -> List Integer
+parseInput input = map cast $ Strings.split (== ',') input
+
+-- | Part 1. Evaluate a program
+main' : IO ()
+main' = do
+  input <- getLine
+  case evaluate 0 (parseInput input) {ok=believe_me()} of
+    Left list => putStrLn . concat . map cast $ list
+    Right res => putStrLn . cast $ res
+
+bruteSearch : List Integer -> List (Integer, Integer, Terminated)
+bruteSearch input =
+  rights [map (\res => (x, y, res)) $ evaluate 0 (attempt x y) {ok=believe_me ()}
+  | x <- [0..100],
+    y <- [0..100]]
+  where
+    attempt : Integer -> Integer -> List Integer
+    attempt x y = update (update input 1 x {ok=believe_me ()}) 2 y {ok=believe_me ()}
+
+-- | Part 2. Search parameter space
 main : IO ()
 main = do
+  search <- getLine
   input <- getLine
-  case evaluate 0 (map cast $ Strings.split (== ',') input) {ok=believe_me()} of
-    Left list => putStrLn . concat . map cast $ list
-    Right res => case res of
-      Error err => putStrLn $ "Error: " ++ cast err
-      Success s => putStrLn $ "Success: " ++ cast s
+  putStr . unlines .
+    map (\(x, y, res) => "X: " ++ cast x ++ ", Y:" ++ cast y ++ ", Res: " ++ cast res) .
+    filter(\(_, _, res) => (cast search) == res) $
+    bruteSearch (parseInput input)

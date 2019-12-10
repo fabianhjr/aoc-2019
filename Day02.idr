@@ -28,7 +28,7 @@ evaluate : (ip: Nat)
          -> {auto ok: InBounds ip mem}
          -> Terminated
 evaluate instructionPointer memory =
-  case nextInstruction of
+  case index instructionPointer memory of
     1 => case inBounds (instructionPointer + 4) opCode1Eval of
       Yes prf =>
           evaluate (instructionPointer + 4) opCode1Eval
@@ -40,8 +40,6 @@ evaluate instructionPointer memory =
     99 => Success . atIndex $ 0
     other => Error . fromInteger $ other
   where
-    nextInstruction : Integer
-    nextInstruction = index instructionPointer memory
     atIndex : Nat -> Integer
     atIndex idx = index idx memory {ok=?prf1}
     val1 : Integer
